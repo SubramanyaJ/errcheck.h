@@ -23,41 +23,6 @@
  * TODO : Check this.
  */
 
-/**
- * Keeping a track of everything here :
- * ERRCHECK_H : 
- *      MACRO
- *      The header guard.
- *
- * ERRCHECK_INT_DECLARE_RET : 
- *      MACRO
- *      Used to declare an integer that catches return values.
- *
- * ERRCHECK_INT:
- *      INT
- *      The integer that catches return values.
- *
- * ERRCHECK_RET_CATCH:
- *      MACRO
- *      To be placed right before a function that
- *      may return a value that signals an error.
- *
- * ERRCHECK_ERRNO:
- *      MACRO
- *      To be placed right after a function that
- *      might have set errno.
- *
- * ERRCHECK_HANDLER:
- *      void(int retval);
- *      The function that handles an errno that was set.
- *
- * ERRCHECK_RESET_ERRNO:
- *      Set this to reset errno to 0 after every check.
- *
- * ERRCHECK_ERRCHECK_HANDLER:
- *      Set this to bring the handler into scope.
- **/
-
 #ifndef ERRCHECK_H
 #define ERRCHECK_H
 
@@ -65,41 +30,92 @@
 #include <stdio.h>
 #include <errno.h>
 
-#define ERRCHECK_INT_DECLARE_RET static int ERRCHECK_INT_RET;
-#define ERRCHECK_INT_DECLARE_NOR static int ERRCHECK_INT_NOR;
+/**
+ * ERRCHECK_INT_RET : 
+ *      Catch the value returned from a syscall.
+ *
+ * ERRCHECK_INT_NOR : 
+ *      Hold the value the user supplied, and expects 
+ *      syscall to return.
+ */
+static int ERRCHECK_INT_RET;
+static int ERRCHECK_INT_NOR;
 
-ERRCHECK_INT_DECLARE_RET
-ERRCHECK_INT_DECLARE_NOR
+/**
+ * ERRCHECK_NORVAL_HANDLER :
+ *      Assigns the expected return value to ERRCHECK_INT_RET.
+ *      If ERRCHECK_PREP_ERRNO is defined, cleans the errno by
+ *      setting it to 0.
+ *
+ * ERRCHECK_ERRNO_HANDLER :
+ *      Returns silently if returned value matches expected
+ *      value, else calls perror();
+ *      If ERRCHECK_RESET_ERRNO is defined, cleans the errno by
+ *      setting it to 0.
+ */
+static inline void ERRCHECK_NORVAL_HANDLER(int);
+static inline void ERRCHECK_ERRNO_HANDLER(void);
 
-#define ERRCHECK_RET_CATCH(NORVAL) \
-        ERRCHECK_INT_NOR = NORVAL; \
-        ERRCHECK_INT_RET = 
+/**
+ * Inspired by Sean Barrett.
+ * ERRCHECK_FUNC_NORVAL_HANDLER and ERRCHECK_FUNC_ERRNO_HANDLER
+ * need to be defined before including this header to expose the 
+ * respective handler function.
+ */
+#if defined(ERRCHECK_FUNC_NORVAL_HANDLER)
+static inline void ERRCHECK_NORVAL_HANDLER(int NORVAL) {
+        ERRCHECK_INT_NOR = NORVAL;
 
-static void ERRCHECK_HANDLER(void);
-
-/* Inspired by Sean Barrett */
-#if defined(ERRCHECK_ERRCHECK_HANDLER)
-
-static void ERRCHECK_HANDLER(void) {
-        if(ERRCHECK_INT_NOR == ERRCHECK_INT_RET) {
-                /** Nothing went wrong
-                 * Return quietly
-                 */
-                return;
-        }
-        perror("errcheck");
-#if defined(ERRCHECK_RESET_ERRNO)
+#if defined(ERRCHECK_PREP_ERRNO)
         errno = 0;
 #endif
 }
-
 #endif
-
-#define ERRCHECK_ERRNO ERRCHECK_HANDLER();
 /**
- * TODO : ERRCHECK_HANDLER is triggered regardless
- * of the return code. Fix this.
+ * TODO : Handle range of expected values for NORVAL.
  */
 
+#if defined(ERRCHECK_FUNC_ERRNO_HANDLER)
+static inline void ERRCHECK_ERRNO_HANDLER(void) {
+        if(ERRCHECK_INT_NOR == ERRCHECK_INT_RET) {
+                /* Nothing wrong, return quietly */
+                return;
+        }
+        perror("errcheck");
 
+#if defined(ERRCHECK_RESET_ERRNO)
+        errno = 0;
+#endif
+        /*  Regardless, reset the values. */
+        ERRCHECK_INT_NOR = 0;
+        ERRCHECK_INT_RET = 0;
+}
+#endif
+/**
+ * TODO : Add syscall name to perror output.
+ */
+
+/**
+ * ERRCHECK_CATCH(NORVAL) :
+ *      The macro to be placed right behind a syscall.
+ *      Takes the expected return values and passes it
+ *      to its handler.
+ *      Catches the return value.
+ *
+ * ERRCHECK_EVAL :
+ *      The macro to be placed right after a syscall.
+ *      Calls its handler.
+ */
+#define ERRCHECK_CATCH(NORVAL) \
+        ERRCHECK_NORVAL_HANDLER(NORVAL); \
+        ERRCHECK_INT_RET = 
+
+#define ERRCHECK_EVAL ERRCHECK_ERRNO_HANDLER();
+
+/**
+ * TODO : 
+ *      Test in multithreaded code
+ *      Test cross-file errors
+ */
+ 
 #endif
