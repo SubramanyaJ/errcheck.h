@@ -19,6 +19,7 @@
 /**
  * I am assuming that ERRCHECK_H is not a commonly 
  * used header guard name.
+ * For now, I assume this is safe.
  * TODO : Check this.
  */
 
@@ -28,7 +29,7 @@
  *      MACRO
  *      The header guard.
  *
- * ERRCHECK_INT_DECLARE : 
+ * ERRCHECK_INT_DECLARE_RET : 
  *      MACRO
  *      Used to declare an integer that catches return values.
  *
@@ -49,40 +50,56 @@
  * ERRCHECK_HANDLER:
  *      void(int retval);
  *      The function that handles an errno that was set.
+ *
+ * ERRCHECK_RESET_ERRNO:
+ *      Set this to reset errno to 0 after every check.
+ *
+ * ERRCHECK_ERRCHECK_HANDLER:
+ *      Set this to bring the handler into scope.
  **/
 
 #ifndef ERRCHECK_H
 #define ERRCHECK_H
 
-/* I need this for perror() */
+/* I need these for perror() */
 #include <stdio.h>
+#include <errno.h>
 
-#define ERRCHECK_INT_DECLARE \
-        ; \
-        int ERRCHECK_INT;
+#define ERRCHECK_INT_DECLARE_RET static int ERRCHECK_INT_RET;
+#define ERRCHECK_INT_DECLARE_NOR static int ERRCHECK_INT_NOR;
 
-#define ERRCHECK_RET_CATCH \
-        ; \
-        ERRCHECK_INT = 
+ERRCHECK_INT_DECLARE_RET
+ERRCHECK_INT_DECLARE_NOR
 
-void ERRCHECK_HANDLER(int ERRCHECK_INT_PARAM);
-void ERRCHECK_HANDLER(int ERRCHECK_INT_PARAM) {
+#define ERRCHECK_RET_CATCH(NORVAL) \
+        ERRCHECK_INT_NOR = NORVAL; \
+        ERRCHECK_INT_RET = 
+
+static void ERRCHECK_HANDLER(void);
+
+/* Inspired by Sean Barrett */
+#if defined(ERRCHECK_ERRCHECK_HANDLER)
+
+static void ERRCHECK_HANDLER(void) {
+        if(ERRCHECK_INT_NOR == ERRCHECK_INT_RET) {
+                /** Nothing went wrong
+                 * Return quietly
+                 */
+                return;
+        }
         perror("errcheck");
+#if defined(ERRCHECK_RESET_ERRNO)
+        errno = 0;
+#endif
 }
 
-#define ERRCHECK_ERRNO \
-        ; \
-        ERRCHECK_HANDLER(ERRCHECK_INT);
+#endif
+
+#define ERRCHECK_ERRNO ERRCHECK_HANDLER();
 /**
  * TODO : ERRCHECK_HANDLER is triggered regardless
  * of the return code. Fix this.
  */
 
-/**
- * These were the definitions and declarations.
- * What follows are initializations.
- */
-
-ERRCHECK_INT_DECLARE
 
 #endif
