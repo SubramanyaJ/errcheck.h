@@ -27,8 +27,8 @@
 #define ERRCHECK_H
 
 /* I need these for perror() */
-#include <stdio.h>
 #include <errno.h>
+#include <stdio.h>
 
 /**
  * ERRCHECK_INT_RET : 
@@ -37,9 +37,14 @@
  * ERRCHECK_INT_NOR : 
  *      Hold the value the user supplied, and expects 
  *      syscall to return.
+ *
+ * ERRCHECK_CHAR_NOR :
+ *      Hold the comparision operator that needs to be
+ *      applied between ERRCHECK_INT_NOR and ERRCHECK_INT_RET.
  */
 static int ERRCHECK_INT_RET;
 static int ERRCHECK_INT_NOR;
+static char ERRCHECK_CHAR_NOR;
 
 /**
  * ERRCHECK_NORVAL_HANDLER :
@@ -53,7 +58,7 @@ static int ERRCHECK_INT_NOR;
  *      If ERRCHECK_RESET_ERRNO is defined, cleans the errno by
  *      setting it to 0.
  */
-static inline void ERRCHECK_NORVAL_HANDLER(int);
+static inline void ERRCHECK_NORVAL_HANDLER(char, int);
 static inline void ERRCHECK_ERRNO_HANDLER(void);
 
 /**
@@ -63,7 +68,8 @@ static inline void ERRCHECK_ERRNO_HANDLER(void);
  * respective handler function.
  */
 #if defined(ERRCHECK_FUNC_NORVAL_HANDLER)
-static inline void ERRCHECK_NORVAL_HANDLER(int NORVAL) {
+static inline void ERRCHECK_NORVAL_HANDLER(char NORRANGE, int NORVAL) {
+        ERRCHECK_CHAR_NOR = NORRANGE;
         ERRCHECK_INT_NOR = NORVAL;
 
 #if defined(ERRCHECK_PREP_ERRNO)
@@ -71,16 +77,40 @@ static inline void ERRCHECK_NORVAL_HANDLER(int NORVAL) {
 #endif
 }
 #endif
-/**
- * TODO : Handle range of expected values for NORVAL.
- */
 
 #if defined(ERRCHECK_FUNC_ERRNO_HANDLER)
 static inline void ERRCHECK_ERRNO_HANDLER(void) {
-        if(ERRCHECK_INT_NOR == ERRCHECK_INT_RET) {
-                /* Nothing wrong, return quietly */
-                return;
+
+        switch (ERRCHECK_CHAR_NOR) {
+                case 'e':
+                        if (ERRCHECK_INT_NOR == ERRCHECK_INT_RET) {
+                                return;
+                        }
+                        break;
+                case 'n':
+                        if (ERRCHECK_INT_NOR != ERRCHECK_INT_RET) {
+                                return;
+                        }
+                        break;
+                case 'g':
+                        if (ERRCHECK_INT_NOR > ERRCHECK_INT_RET) {
+                                return;
+                        }
+                        break;
+                case 'l':
+                        if (ERRCHECK_INT_NOR < ERRCHECK_INT_RET) {
+                                return;
+                        }
+                        break;
+                default:
+                        break;
+                        /**
+                         * TODO : I should probably make this print to stderr
+                         * but how do I do that without calling a function
+                         * that sets stderr? Saving the errno here?
+                         */
         }
+
         perror("errcheck");
 
 #if defined(ERRCHECK_RESET_ERRNO)
@@ -96,7 +126,7 @@ static inline void ERRCHECK_ERRNO_HANDLER(void) {
  */
 
 /**
- * ERRCHECK_CATCH(NORVAL) :
+ * ERRCHECK_CATCH(NORRANGE, NORVAL) :
  *      The macro to be placed right behind a syscall.
  *      Takes the expected return values and passes it
  *      to its handler.
@@ -106,8 +136,8 @@ static inline void ERRCHECK_ERRNO_HANDLER(void) {
  *      The macro to be placed right after a syscall.
  *      Calls its handler.
  */
-#define ERRCHECK_CATCH(NORVAL) \
-        ERRCHECK_NORVAL_HANDLER(NORVAL); \
+#define ERRCHECK_CATCH(NORRANGE, NORVAL) \
+        ERRCHECK_NORVAL_HANDLER(NORRANGE, NORVAL); \
         ERRCHECK_INT_RET = 
 
 #define ERRCHECK_EVAL ERRCHECK_ERRNO_HANDLER();

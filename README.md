@@ -29,8 +29,14 @@ before and after a call that may modify errno.
 Pass the expected return value as the parameter NORVAL in ERRCHECK_CATCH.
 
 ```
+/**
+ * e -> Equals
+ * n -> Not equals
+ * g -> Greater than
+ * l -> Less than
+ */
 ...
-ERRCHECK_CATCH(0) somecall();
+ERRCHECK_CATCH('e', 0) somecall();
 ERRCHECK_EVAL
 ...
 ```
